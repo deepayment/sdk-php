@@ -4,9 +4,21 @@
   "type": "library",
   "license": "Apache-2.0",
   "homepage": "https://github.com/deepayment/sdk-php",
-  "keywords": ["payment", "payout", "merchant-api"],
-  "authors": [{ "name": "DEEPayment", "email": "support@deepayment.com" }],
-  "support": { "issues": "https://github.com/deepayment/sdk-php/issues", "email": "support@deepayment.com" },
+  "keywords": [
+    "payment",
+    "payout",
+    "merchant-api"
+  ],
+  "authors": [
+    {
+      "name": "DEEPayment",
+      "email": "support@deepayment.com"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/deepayment/sdk-php/issues",
+    "email": "support@deepayment.com"
+  },
   "require": {
     "php": ">=8.2",
     "ext-sodium": "*",
@@ -14,7 +26,12 @@
     "ext-curl": "*"
   },
   "autoload": {
-    "psr-4": { "Deepayment\\Sdk\\": "src/" }
+    "psr-4": {
+      "Deepayment\\Sdk\\": "src/"
+    },
+    "classmap": [
+      "src/Exceptions.php"
+    ]
   },
   "scripts": {
     "test": "php tests/run.php"
