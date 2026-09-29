@@ -839,6 +839,71 @@ foreach ([['', 'UTR'], ['P1', ''], [' ', 'UTR'], ['P1', ' ']] as $case) {
     });
 }
 
+foreach ([
+    'orderNo' => [['orderNo' => ' P1 ', 'tradeNo' => ' 123456789012 '], ['orderNo' => 'P1', 'tradeNo' => '123456789012']],
+    'merchantOrderNo' => [
+        ['merchantOrderNo' => 'M1', 'orderNo' => ' ', 'tradeNo' => '123456789012'],
+        ['merchantOrderNo' => 'M1', 'tradeNo' => '123456789012'],
+    ],
+] as $variant => [$req, $wantBody]) {
+    test("supplementPayment: signed encrypted POST by {$variant}", function () use ($transport, &$captured, &$nextResponse, $BODY, $req, $wantBody) {
+        $nextResponse = [
+            'status' => 200,
+            'body' => json_encode(['code' => 200, 'msg' => 'OK', 'data' => [
+                'orderNo' => 'P1', 'merchantOrderNo' => 'M1', 'status' => Status::PROCESSING,
+                'amount' => '100.00', 'currency' => 'INR',
+            ]]),
+        ];
+        $key = P::newNonce();
+        $order = makeClient($transport)->supplementPayment($req, $key);
+        eq($order['orderNo'], 'P1');
+        eq($order['status'], Status::PROCESSING);
+
+        eq($captured['method'], 'POST');
+        eq($captured['url'], 'https://api.example.com/api/v1/payments/trade-no');
+        $h = array_change_key_case($captured['headers']);
+        eq($h['content-encryption'], P::CONTENT_ENCRYPTION);
+        eq($h['idempotency-key'], $key);
+        eq($h['merchant-access-key'], 'mak_live_test');
+        ok(str_starts_with($h['signature'], 'merchant=:'));
+        eq($h['content-digest'], P::contentDigestSha256($captured['body']));
+        [$plaintext] = P::openBodyEnvelope(
+            $captured['body'],
+            base64_decode($BODY['platformBodyPublicKeyBase64']),
+            base64_decode($BODY['platformBodyPrivateKeyBase64'])
+        );
+        eq(json_decode($plaintext, true), $wantBody);
+    });
+}
+
+foreach ([
+    'missing tradeNo' => ['orderNo' => 'P1'],
+    'blank tradeNo' => ['orderNo' => 'P1', 'tradeNo' => ' '],
+    'neither locator' => ['tradeNo' => '123456789012'],
+    'both locators' => ['orderNo' => 'P1', 'merchantOrderNo' => 'M1', 'tradeNo' => '123456789012'],
+] as $name => $req) {
+    test("supplementPayment: {$name} is rejected locally", function () use ($req) {
+        $client = makeClient(fn () => throw new RuntimeException('must not be reached'));
+        throws(RequestException::class, fn () => $client->supplementPayment($req));
+    });
+}
+
+test('supplementPayment: CHANNEL_ERROR becomes ApiException', function () use ($transport, &$nextResponse) {
+    $nextResponse = ['status' => 422, 'body' => json_encode([
+        'code' => 12100019, 'msg' => 'CHANNEL_ERROR', 'traceId' => 'trace-ch',
+        'data' => ['message' => 'channel did not accept the reference'],
+    ])];
+    try {
+        makeClient($transport)->supplementPayment(['orderNo' => 'P1', 'tradeNo' => '123456789012']);
+        throw new \AssertionError('expected ApiException');
+    } catch (ApiException $e) {
+        eq($e->httpStatus, 422);
+        eq($e->getCode(), 12100019);
+        eq($e->msg, 'CHANNEL_ERROR');
+        eq($e->apiMessage, 'channel did not accept the reference');
+    }
+});
+
 test('addExtraInfo: optional fields are omitted rather than sent empty', function () use ($transport, &$captured, &$nextResponse) {
     $nextResponse = [
         'status' => 200,

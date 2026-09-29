@@ -116,6 +116,12 @@ SDK. The wire protocol is in
 
 - After a create times out, query by `merchantOrderNo` before sending anything
   new; a deliberate retry repeats the same call with the same `merchantOrderNo`.
+- When the payer has transferred but the payment is still `PROCESSING`, submit
+  their transfer reference with
+  `$client->supplementPayment(['orderNo' => $orderNo, 'tradeNo' => $utr])` (or
+  `merchantOrderNo` instead of `orderNo`, never both). Success only means the
+  channel accepted the reference; the final status still comes from the webhook
+  or a query.
 - For webhooks, pass the method, path, headers and the **raw, unparsed body
   bytes** to `$client->parsePaymentWebhook($method, $path, $headers, $rawBody)`;
   the SDK checks the digest, event id, time window and Ed25519 signature. Return

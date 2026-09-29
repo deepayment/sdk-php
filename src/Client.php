@@ -155,6 +155,33 @@ final class Client
         return $this->write('/api/v1/payouts', $req, $idempotencyKey);
     }
 
+    /**
+     * Submits the payer's transfer reference (tradeNo) for a payment order that
+     * is still PROCESSING so the platform can have the channel match it. Exactly
+     * one of orderNo or merchantOrderNo locates the order. A successful response
+     * only means the channel accepted the reference; the final status still
+     * arrives through the webhook or a query. The tradeNo format is validated by
+     * the platform per currency, not here.
+     *
+     * @param array{orderNo?:string,merchantOrderNo?:string,tradeNo?:string} $req
+     */
+    public function supplementPayment(array $req, ?string $idempotencyKey = null): mixed
+    {
+        $orderNo = trim((string) ($req['orderNo'] ?? ''));
+        $merchantOrderNo = trim((string) ($req['merchantOrderNo'] ?? ''));
+        $tradeNo = trim((string) ($req['tradeNo'] ?? ''));
+        if ($tradeNo === '') {
+            throw new RequestException('sdk: required field is empty: tradeNo');
+        }
+        if (($orderNo === '') === ($merchantOrderNo === '')) {
+            throw new RequestException('sdk: exactly one of orderNo or merchantOrderNo is required');
+        }
+        $body = $orderNo !== ''
+            ? ['orderNo' => $orderNo, 'tradeNo' => $tradeNo]
+            : ['merchantOrderNo' => $merchantOrderNo, 'tradeNo' => $tradeNo];
+        return $this->write('/api/v1/payments/trade-no', $body, $idempotencyKey);
+    }
+
     public function queryPaymentByOrderNo(string $orderNo): mixed
     {
         return $this->read('/api/v1/payments', ['orderNo' => $orderNo]);
